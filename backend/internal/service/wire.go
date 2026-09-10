@@ -616,6 +616,12 @@ func ProvideIdempotencyCleanupService(repo IdempotencyRepository, cfg *config.Co
 	return svc
 }
 
+func ProvideOpenClawBillingLeaseExpiryService(billing *OpenClawBillingService) *OpenClawBillingLeaseExpiryService {
+	svc := NewOpenClawBillingLeaseExpiryService(billing)
+	svc.Start()
+	return svc
+}
+
 // ProvideScheduledTestService creates ScheduledTestService.
 func ProvideScheduledTestService(
 	planRepo ScheduledTestPlanRepository,
@@ -837,6 +843,8 @@ var ProviderSet = wire.NewSet(
 	NewDashboardService,
 	ProvidePricingService,
 	NewBillingService,
+	NewOpenClawBillingService,
+	ProvideOpenClawBillingLeaseExpiryService,
 	ProvideBillingCacheService,
 	NewAnnouncementService,
 	NewAdminService,

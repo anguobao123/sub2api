@@ -37,6 +37,10 @@ func SetupRouter(
 	cfg *config.Config,
 	redisClient *redis.Client,
 ) *gin.Engine {
+	// The bridge deliberately bypasses global request/body logging and browser
+	// session middleware. Its route group has only its dedicated bearer gate.
+	routes.RegisterOpenClawBillingRoutes(r, handlers.OpenClawBilling, middleware2.NewOpenClawBillingAuth(cfg))
+
 	middleware2.SetIngressRejectRecorder(opsService)
 	// 缓存 iframe 页面的 origin 列表，用于动态注入 CSP frame-src
 	var cachedFrameOrigins atomic.Pointer[[]string]

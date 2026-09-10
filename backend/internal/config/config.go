@@ -104,6 +104,7 @@ type Config struct {
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+	OpenClawBilling         OpenClawBillingConfig         `mapstructure:"openclaw_billing"`
 }
 
 // PluginConfig 控制管理员手动上传的本地进程插件。
@@ -912,6 +913,19 @@ type BillingConfig struct {
 	// UserPlatformQuotaSentinelTTLSeconds sentinel(无 limit 占位)entry 的 TTL,
 	// 显著短于 quota cache 默认 86400s 以控 Redis 内存;默认 3600=1h。
 	UserPlatformQuotaSentinelTTLSeconds int `mapstructure:"user_platform_quota_sentinel_ttl_seconds"`
+}
+
+// OpenClawBillingConfig controls the optional, bearer-protected OpenClaw USD
+// billing bridge. It is intentionally separate from browser JWT, admin API
+// keys, and gateway API keys.
+type OpenClawBillingConfig struct {
+	Enabled                bool    `mapstructure:"enabled"`
+	InternalBearer         string  `mapstructure:"internal_bearer"`
+	IdentityHMACKey        string  `mapstructure:"identity_hmac_key"`
+	DefaultGrantUSD        float64 `mapstructure:"default_grant_usd"`
+	LeaseTTLSeconds        int     `mapstructure:"lease_ttl_seconds"`
+	MaxUsageEventsPerBatch int     `mapstructure:"max_usage_events_per_batch"`
+	ExpiryBatchSize        int     `mapstructure:"expiry_batch_size"`
 }
 
 type CircuitBreakerConfig struct {
@@ -1892,6 +1906,8 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Log.Environment = strings.TrimSpace(cfg.Log.Environment)
 	cfg.Log.StacktraceLevel = strings.ToLower(strings.TrimSpace(cfg.Log.StacktraceLevel))
 	cfg.Log.Output.FilePath = strings.TrimSpace(cfg.Log.Output.FilePath)
+	cfg.OpenClawBilling.InternalBearer = strings.TrimSpace(cfg.OpenClawBilling.InternalBearer)
+	cfg.OpenClawBilling.IdentityHMACKey = strings.TrimSpace(cfg.OpenClawBilling.IdentityHMACKey)
 	cfg.Gateway.ForcedCodexInstructionsTemplateFile = strings.TrimSpace(cfg.Gateway.ForcedCodexInstructionsTemplateFile)
 	if cfg.Gateway.ForcedCodexInstructionsTemplateFile != "" {
 		content, err := os.ReadFile(cfg.Gateway.ForcedCodexInstructionsTemplateFile)
@@ -2076,6 +2092,16 @@ func setDefaults() {
 	viper.SetDefault("billing.minimum_balance_reserve", 0.000001)
 	viper.SetDefault("billing.user_platform_quota_cache_ttl_seconds", 86400)
 	viper.SetDefault("billing.user_platform_quota_sentinel_ttl_seconds", 3600)
+
+	// OpenClaw USD billing bridge. Deliberately disabled until its independent
+	// bearer and HMAC key are configured.
+	viper.SetDefault("openclaw_billing.enabled", false)
+	viper.SetDefault("openclaw_billing.internal_bearer", "")
+	viper.SetDefault("openclaw_billing.identity_hmac_key", "")
+	viper.SetDefault("openclaw_billing.default_grant_usd", 50.0)
+	viper.SetDefault("openclaw_billing.lease_ttl_seconds", 900)
+	viper.SetDefault("openclaw_billing.max_usage_events_per_batch", 100)
+	viper.SetDefault("openclaw_billing.expiry_batch_size", 100)
 
 	// Turnstile
 	viper.SetDefault("turnstile.required", false)
@@ -3043,6 +3069,26 @@ func (c *Config) Validate() error {
 	}
 	if c.Billing.MinimumBalanceReserve < 0 {
 		return fmt.Errorf("billing.minimum_balance_reserve must be non-negative")
+	}
+	if math.IsNaN(c.OpenClawBilling.DefaultGrantUSD) || math.IsInf(c.OpenClawBilling.DefaultGrantUSD, 0) || c.OpenClawBilling.DefaultGrantUSD < 0 || c.OpenClawBilling.DefaultGrantUSD > 999_999_999_999 {
+		return fmt.Errorf("openclaw_billing.default_grant_usd must be a finite non-negative number")
+	}
+	if c.OpenClawBilling.LeaseTTLSeconds <= 0 {
+		return fmt.Errorf("openclaw_billing.lease_ttl_seconds must be positive")
+	}
+	if c.OpenClawBilling.MaxUsageEventsPerBatch <= 0 || c.OpenClawBilling.MaxUsageEventsPerBatch > 1000 {
+		return fmt.Errorf("openclaw_billing.max_usage_events_per_batch must be between 1 and 1000")
+	}
+	if c.OpenClawBilling.ExpiryBatchSize <= 0 || c.OpenClawBilling.ExpiryBatchSize > 1000 {
+		return fmt.Errorf("openclaw_billing.expiry_batch_size must be between 1 and 1000")
+	}
+	if c.OpenClawBilling.Enabled {
+		if len(c.OpenClawBilling.InternalBearer) < 32 {
+			return fmt.Errorf("openclaw_billing.internal_bearer must be at least 32 bytes when enabled")
+		}
+		if len(c.OpenClawBilling.IdentityHMACKey) < 32 {
+			return fmt.Errorf("openclaw_billing.identity_hmac_key must be at least 32 bytes when enabled")
+		}
 	}
 	if c.Database.MaxOpenConns <= 0 {
 		return fmt.Errorf("database.max_open_conns must be positive")
