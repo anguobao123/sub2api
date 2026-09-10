@@ -3,7 +3,7 @@
 ## Start Here
 
 - Read this file and `PROJECT_CONTEXT.md`, then inspect Git status and affected code before changes.
-- This worktree is dedicated to `codex/fusion-billing-20260911`, based on the running Sub2API 0.2.3 revision `8fa67d477d6651a744754392a8982ea589c26ae6`. Keep the original checkout and other worktrees unchanged.
+- This worktree is dedicated to `codex/fusion-billing-20260911`, aligned with the running Sub2API 0.2.4 revision `5de5e2bed035d43591a2e10e51f420ef6a84eb98`. Inspect the actual binary version: the container image tag may predate an in-app update. Keep the original checkout and other worktrees unchanged.
 - The Fusion primary task coordinates Suite integration, credentials and deployment under the user's existing authorization; delegated porting and tests must stay within their assigned files and temporary environments.
 - Keep the upstream LGPL-3.0-or-later license and copyright notices intact. New code must be original, narrowly scoped, and compatible with the existing license.
 
@@ -34,11 +34,11 @@
 ## Engineering Rules
 
 - Go code follows the existing style: Go ESM-equivalent module layout, tabs as `gofmt` emits, explicit errors, and PostgreSQL `NUMERIC(20,8)` amounts.
-- Use a separate `openclaw_billing_*` namespace. Never route bridge traffic through browser JWT, admin credentials, OpenAI gateway API keys, or the normal `usage_billing_dedup` table.
+- Keep the internal bridge's bearer and identities separate from browser JWT and admin credentials. Native model requests use a dedicated user API Key and the native request/key dedup transaction; managed wallet capture replaces that transaction's wallet debit, never adds a second debit.
 - Internal bridge requests require a separately configured bearer credential. The feature is disabled and fail-closed unless explicitly enabled and configured.
 - Do not persist raw `platformUserId`, raw credentials, or raw chat/task content. Persist a server-keyed HMAC locator and opaque internal IDs only.
 - OpenClaw usage events are append-only. Do not add them to generic usage cleanup paths or expose deletion endpoints.
-- A usage event without both `pricingVersion` and `priceSnapshot` remains `pending_pricing` and must never charge a balance or capture a lease.
+- Legacy ingested events without `pricingVersion` and `priceSnapshot` remain `pending_pricing`. Managed HTTP Responses use native pricing and preserve unknown or unsettled usage without assuming zero.
 
 ## Verification
 
