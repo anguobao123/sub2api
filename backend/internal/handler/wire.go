@@ -248,7 +248,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
-	NewOpenClawBillingHandler,
+	ProvideOpenClawBillingHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

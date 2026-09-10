@@ -22,6 +22,10 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
 }
 
+func NewOpenClawAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, sessions *service.OpenClawTaskSessionService) APIKeyAuthMiddleware {
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg, sessions))
+}
+
 // apiKeyAuthWithSubscription API Key认证中间件（支持订阅验证）
 //
 // 中间件职责分为两层：
@@ -31,7 +35,7 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 // /v1/usage、/v1/sub2api/billing 端点与异步生图任务查询只需鉴权，不需要计费执行。
 // usage 允许过期/配额耗尽的 Key 查询自身用量，billing 用于读取当前 Key 的倍率配置，
 // 异步生图查询允许已耗尽额度的 Key 拉取自身任务结果。
-func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, taskSessions ...*service.OpenClawTaskSessionService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ── 1. 提取 API Key ──────────────────────────────────────────
 		if rejectInvalidAuthAbuse(c, apiKeyService) {
@@ -166,10 +170,28 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
 		c.Request = c.Request.WithContext(ctx)
 		billingInfoRequest := c.Request.URL.Path == "/v1/sub2api/billing"
+		var sessions *service.OpenClawTaskSessionService
+		managed := false
+		if len(taskSessions) > 0 {
+			sessions = taskSessions[0]
+			account, err := sessions.ManagedAccount(c.Request.Context(), apiKey.User.ID)
+			if err != nil {
+				AbortWithError(c, 503, "OPENCLAW_ACCOUNT_LOOKUP_FAILED", "Billing account lookup failed")
+				return
+			}
+			managed = account != nil
+		}
 		// Async image task polling only reads data that already belongs to the
 		// authenticated key and must remain available after the completed
 		// generation consumes the key's remaining balance.
 		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
+		if managed {
+			if cfg.RunMode == config.RunModeSimple {
+				AbortWithError(c, 503, "OPENCLAW_BILLING_DISABLED", "Task billing requires standard mode")
+				return
+			}
+			skipBilling = openClawReadOnlyGatewayPath(c)
+		}
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
 
@@ -260,7 +282,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				}
 			} else {
 				// 非订阅模式 或 订阅模式但 subscriptionService 未注入：回退到余额检查
-				if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+				if !managed && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
 					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 					return
 				}
@@ -281,6 +303,11 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		setGroupContext(c, apiKey.Group)
 		if !billingInfoRequest {
 			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+		}
+		if managed && !skipBilling {
+			if !beginOpenClawGatewayRequest(c, sessions, apiKey) {
+				return
+			}
 		}
 
 		c.Next()

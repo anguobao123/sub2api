@@ -151,7 +151,17 @@ func groupBillsOpenAIFastAtStandard(apiKey *APIKey, account *Account, serviceTie
 }
 
 // RecordUsage records usage and deducts balance
-func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {
+func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) (err error) {
+	link := OpenClawGatewayRequestFromContext(ctx)
+	defer func() {
+		if err != nil && link != nil && link.ReportFailure != nil {
+			failureCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if reportErr := link.ReportFailure(failureCtx); reportErr != nil {
+				logger.L().Error("openclaw usage failure could not be recorded")
+			}
+		}
+	}()
 	if input == nil {
 		return errors.New("openai usage input is nil")
 	}
@@ -263,6 +273,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			zap.Int64("account_id", account.ID),
 		).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(err))
 		cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
+	}
+	if link != nil {
+		link.PricingKnown = err == nil
 	}
 	// response_model：按上游成功响应自报的模型计费（渠道显式开启才生效）。
 	// 采纳条件见 responseModelBillingDeclaration + hasIdentifiedOpenAIResponsePricing

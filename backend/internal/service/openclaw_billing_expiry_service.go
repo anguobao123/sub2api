@@ -15,6 +15,7 @@ const openClawBillingLeaseExpiryMaxInterval = 30 * time.Second
 // concurrent instances and request-path expiry scans safe to run together.
 type OpenClawBillingLeaseExpiryService struct {
 	billing  *OpenClawBillingService
+	sessions *OpenClawTaskSessionService
 	interval time.Duration
 
 	startOnce sync.Once
@@ -78,6 +79,12 @@ func (s *OpenClawBillingLeaseExpiryService) Stop() {
 func (s *OpenClawBillingLeaseExpiryService) expireOnce() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if s.sessions != nil {
+		if _, err := s.sessions.Expire(ctx); err != nil {
+			logger.LegacyPrintf("service.openclaw_billing_expiry", "OpenClaw task session expiry failed")
+			return
+		}
+	}
 
 	expired, err := s.billing.ExpireLeases(ctx)
 	if err != nil {

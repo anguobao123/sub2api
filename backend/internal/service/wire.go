@@ -616,8 +616,9 @@ func ProvideIdempotencyCleanupService(repo IdempotencyRepository, cfg *config.Co
 	return svc
 }
 
-func ProvideOpenClawBillingLeaseExpiryService(billing *OpenClawBillingService) *OpenClawBillingLeaseExpiryService {
+func ProvideOpenClawBillingLeaseExpiryService(billing *OpenClawBillingService, sessions *OpenClawTaskSessionService) *OpenClawBillingLeaseExpiryService {
 	svc := NewOpenClawBillingLeaseExpiryService(billing)
+	svc.sessions = sessions
 	svc.Start()
 	return svc
 }
@@ -844,6 +845,7 @@ var ProviderSet = wire.NewSet(
 	ProvidePricingService,
 	NewBillingService,
 	NewOpenClawBillingService,
+	NewOpenClawTaskSessionService,
 	ProvideOpenClawBillingLeaseExpiryService,
 	ProvideBillingCacheService,
 	NewAnnouncementService,

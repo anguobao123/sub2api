@@ -877,6 +877,9 @@ func (s *BillingCacheService) balanceBelowEligibilityThreshold(balance float64) 
 
 // checkBalanceEligibility 检查余额模式资格
 func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userID int64) error {
+	if link := OpenClawGatewayRequestFromContext(ctx); link != nil && link.UserID == userID {
+		return nil
+	}
 	balance, err := s.GetUserBalance(ctx, userID)
 	if err != nil {
 		if s.circuitBreaker != nil {

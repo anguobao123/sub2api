@@ -51,7 +51,17 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 	}
 
 	result := &service.UsageBillingApplyResult{Applied: true}
-	if err := r.applyUsageBillingEffects(ctx, tx, cmd, result); err != nil {
+	effects := *cmd
+	if cmd.OpenClawLeaseID != "" {
+		if err := applyOpenClawGatewayUsage(ctx, tx, cmd, result); err != nil {
+			return nil, err
+		}
+		effects.BalanceCost = 0
+		if result.OpenClawUnsettled {
+			effects.SubscriptionCost = 0
+		}
+	}
+	if err := r.applyUsageBillingEffects(ctx, tx, &effects, result); err != nil {
 		return nil, err
 	}
 

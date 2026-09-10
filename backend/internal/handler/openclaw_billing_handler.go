@@ -21,7 +21,8 @@ const openClawUSDCurrency = "USD"
 // openClawUSDAmount rejects JSON numbers. Amounts cross the bridge as a
 // decimal-integer count of fixed-scale minor units.
 type openClawUSDAmount struct {
-	value decimal.Decimal
+	value   decimal.Decimal
+	present bool
 }
 
 func (a *openClawUSDAmount) UnmarshalJSON(data []byte) error {
@@ -50,6 +51,7 @@ func (a *openClawUSDAmount) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	a.value = value
+	a.present = true
 	return nil
 }
 
@@ -84,7 +86,8 @@ func openClawHTTPMinorAmountDigits(value string) bool {
 // logs or returns platformUserId, and routes are isolated from browser/API-key
 // authentication behind the bridge's own bearer middleware.
 type OpenClawBillingHandler struct {
-	service *service.OpenClawBillingService
+	service  *service.OpenClawBillingService
+	sessions *service.OpenClawTaskSessionService
 }
 
 func NewOpenClawBillingHandler(service *service.OpenClawBillingService) *OpenClawBillingHandler {

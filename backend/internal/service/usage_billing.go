@@ -17,10 +17,13 @@ var ErrUsageBillingRequestConflict = errors.New("usage billing request fingerpri
 
 // UsageBillingCommand describes one billable request that must be applied at most once.
 type UsageBillingCommand struct {
-	RequestID          string
-	APIKeyID           int64
-	RequestFingerprint string
-	RequestPayloadHash string
+	OpenClawLeaseID      string
+	OpenClawRequestID    string
+	OpenClawPricingKnown bool
+	RequestID            string
+	APIKeyID             int64
+	RequestFingerprint   string
+	RequestPayloadHash   string
 
 	UserID              int64
 	AccountID           int64
@@ -132,6 +135,9 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 	if payloadHash := strings.TrimSpace(c.RequestPayloadHash); payloadHash != "" {
 		raw += "|" + payloadHash
 	}
+	if c.OpenClawLeaseID != "" {
+		raw += fmt.Sprintf("|openclaw:%s|%s|%t", c.OpenClawLeaseID, c.OpenClawRequestID, c.OpenClawPricingKnown)
+	}
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
 }
@@ -163,6 +169,7 @@ type AccountQuotaState struct {
 }
 
 type UsageBillingApplyResult struct {
+	OpenClawUnsettled    bool
 	Applied              bool
 	APIKeyQuotaExhausted bool
 	NewBalance           *float64           // post-deduction balance (nil = no balance deduction)

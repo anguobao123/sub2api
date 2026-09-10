@@ -919,6 +919,7 @@ type BillingConfig struct {
 // billing bridge. It is intentionally separate from browser JWT, admin API
 // keys, and gateway API keys.
 type OpenClawBillingConfig struct {
+	GatewayGroupID         int64   `mapstructure:"gateway_group_id"`
 	Enabled                bool    `mapstructure:"enabled"`
 	InternalBearer         string  `mapstructure:"internal_bearer"`
 	IdentityHMACKey        string  `mapstructure:"identity_hmac_key"`
@@ -2096,6 +2097,7 @@ func setDefaults() {
 	// OpenClaw USD billing bridge. Deliberately disabled until its independent
 	// bearer and HMAC key are configured.
 	viper.SetDefault("openclaw_billing.enabled", false)
+	viper.SetDefault("openclaw_billing.gateway_group_id", 0)
 	viper.SetDefault("openclaw_billing.internal_bearer", "")
 	viper.SetDefault("openclaw_billing.identity_hmac_key", "")
 	viper.SetDefault("openclaw_billing.default_grant_usd", 50.0)

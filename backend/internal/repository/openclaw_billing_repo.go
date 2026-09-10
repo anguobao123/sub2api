@@ -330,6 +330,13 @@ func (r *openClawBillingRepository) applyOpenClawLeaseOperation(ctx context.Cont
 	if lease.BillingUserID != command.Account.BillingUserID {
 		return nil, service.ErrOpenClawAccountNotFound
 	}
+	var taskSession bool
+	if err := tx.QueryRowContext(ctx, `SELECT gateway_api_key_id IS NOT NULL FROM openclaw_task_budget_leases WHERE lease_id=$1`, lease.LeaseID).Scan(&taskSession); err != nil {
+		return nil, err
+	}
+	if taskSession {
+		return nil, service.ErrOpenClawBillingInvalid
+	}
 
 	if lease.Status != service.OpenClawLeaseStatusActive {
 		if lease.Status == service.OpenClawLeaseStatusExpired {
@@ -404,7 +411,7 @@ func (r *openClawBillingRepository) ExpireLeases(ctx context.Context, limit int)
 			reserved_usd, captured_usd, released_usd, status, expires_at, created_at, finalized_at,
 			reserve_request_fingerprint
 		FROM openclaw_task_budget_leases
-		WHERE status = 'active' AND expires_at <= NOW()
+		WHERE status = 'active' AND expires_at <= NOW() AND gateway_api_key_id IS NULL
 		ORDER BY expires_at ASC
 		LIMIT $1
 		FOR UPDATE SKIP LOCKED

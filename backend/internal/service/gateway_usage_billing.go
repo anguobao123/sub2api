@@ -337,6 +337,15 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
+	if link := OpenClawGatewayRequestFromContext(ctx); link != nil && cmd != nil {
+		cmd.OpenClawLeaseID = link.LeaseID
+		cmd.OpenClawRequestID = link.RequestID
+		cmd.OpenClawPricingKnown = link.PricingKnown
+		cmd.RequestFingerprint = buildUsageBillingFingerprint(cmd)
+	}
+	if OpenClawGatewayRequestFromContext(ctx) != nil && (cmd == nil || repo == nil) {
+		return false, ErrOpenClawBillingDisabled
+	}
 	if cmd == nil || cmd.RequestID == "" || repo == nil {
 		postUsageBilling(ctx, p, deps)
 		return true, nil

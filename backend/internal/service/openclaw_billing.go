@@ -201,6 +201,7 @@ type OpenClawBillingRepository interface {
 
 type OpenClawBillingService struct {
 	repository OpenClawBillingRepository
+	settings   SettingRepository
 	config     config.OpenClawBillingConfig
 	now        func() time.Time
 }
@@ -229,12 +230,16 @@ func (s *OpenClawBillingService) ResolveAccount(ctx context.Context, platformUse
 	}
 
 	billingAccountID := newOpenClawOpaqueID("ocba")
+	grant, err := readOpenClawInitialGrant(ctx, s.settings, s.config.DefaultGrantUSD)
+	if err != nil {
+		return nil, err
+	}
 	provision := OpenClawAccountProvision{
 		PlatformUserHMAC: hashOpenClawPlatformUserID(s.config.IdentityHMACKey, platformUserID),
 		BillingAccountID: billingAccountID,
 		SyntheticEmail:   "openclaw-" + billingAccountID + "@bridge.invalid",
 		PasswordHash:     "!openclaw-internal-login-disabled!",
-		DefaultGrantUSD:  openClawUSDFromConfig(s.config.DefaultGrantUSD),
+		DefaultGrantUSD:  grant,
 	}
 	return s.repository.EnsureAccount(ctx, provision)
 }

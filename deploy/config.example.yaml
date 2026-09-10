@@ -1122,6 +1122,8 @@ billing:
 # bearer; browser JWTs, admin API keys, and gateway API keys are not accepted.
 openclaw_billing:
   enabled: false
+  # Explicit native OpenAI gateway group; 0 leaves task execution unavailable.
+  gateway_group_id: 0
   internal_bearer: ""
   identity_hmac_key: ""
   default_grant_usd: 50.0
