@@ -2567,6 +2567,9 @@ func (r *stubUsageLogRepo) Create(ctx context.Context, log *service.UsageLog) (b
 func (r *stubUsageLogRepo) GetByID(ctx context.Context, id int64) (*service.UsageLog, error) {
 	return nil, errors.New("not implemented")
 }
+func (r *stubUsageLogRepo) GetAPIKeyRequestUsage(context.Context, int64, string) (*service.APIKeyRequestUsage, error) {
+	return nil, errors.New("not implemented")
+}
 
 func (r *stubUsageLogRepo) Delete(ctx context.Context, id int64) error {
 	return errors.New("not implemented")

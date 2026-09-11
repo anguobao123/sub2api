@@ -169,7 +169,8 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		}
 		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
 		c.Request = c.Request.WithContext(ctx)
-		billingInfoRequest := c.Request.URL.Path == "/v1/sub2api/billing"
+		billingInfoRequest := c.Request.URL.Path == "/v1/sub2api/billing" ||
+			(c.Request.Method == http.MethodGet && c.Request.URL.Path == "/v1/usage/requests")
 		var sessions *service.OpenClawTaskSessionService
 		managed := false
 		if len(taskSessions) > 0 {

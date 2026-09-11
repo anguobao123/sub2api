@@ -58,6 +58,16 @@ func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string
 	return router
 }
 
+func TestAPIKeyRequestUsageRouteRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet && route.Path == "/v1/usage/requests" {
+			return
+		}
+	}
+	t.Fatal("authenticated native request usage route is missing")
+}
+
 func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 

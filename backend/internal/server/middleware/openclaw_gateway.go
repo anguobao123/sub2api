@@ -18,7 +18,7 @@ func openClawReadOnlyGatewayPath(c *gin.Context) bool {
 		return false
 	}
 	path := c.Request.URL.Path
-	return path == "/v1/usage" || path == "/v1/sub2api/billing" || path == "/v1/models" || path == "/models"
+	return path == "/v1/usage" || path == "/v1/usage/requests" || path == "/v1/sub2api/billing" || path == "/v1/models" || path == "/models"
 }
 
 func beginOpenClawGatewayRequest(c *gin.Context, sessions *service.OpenClawTaskSessionService, key *service.APIKey) bool {

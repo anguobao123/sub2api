@@ -1312,6 +1312,37 @@ func TestAPIKeyAuthBillingInfoSkipsLastUsedInSimpleMode(t *testing.T) {
 	require.Zero(t, touchCalls)
 }
 
+func TestAPIKeyRequestUsageAuthWithoutManagedBillingOrFunds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, keyStatus, userStatus string
+		status                      int
+	}{
+		{"empty-wallet", service.StatusActive, service.StatusActive, http.StatusOK},
+		{"quota-exhausted", service.StatusAPIKeyQuotaExhausted, service.StatusActive, http.StatusOK},
+		{"disabled-key", "disabled", service.StatusActive, http.StatusUnauthorized},
+		{"disabled-user", service.StatusActive, "disabled", http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user := &service.User{ID: 7, Role: service.RoleUser, Status: tc.userStatus, Balance: 0}
+			key := &service.APIKey{ID: 100, UserID: user.ID, Key: "upstream-service-key", Status: tc.keyStatus, User: user}
+			touches := 0
+			repo := &stubApiKeyRepo{
+				getByKey:       func(context.Context, string) (*service.APIKey, error) { clone := *key; return &clone, nil },
+				updateLastUsed: func(context.Context, int64, time.Time) error { touches++; return nil },
+			}
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			router := newAuthTestRouter(service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg), nil, cfg)
+			response := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/v1/usage/requests?request_id=native-request", nil)
+			request.Header.Set("Authorization", "Bearer "+key.Key)
+			router.ServeHTTP(response, request)
+			require.Equal(t, tc.status, response.Code)
+			require.Zero(t, touches)
+		})
+	}
+}
+
 func TestAPIKeyAuthUsageStillTouchesLastUsed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1509,6 +1540,7 @@ func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService
 	router.POST("/v1/responses", ok)
 	router.POST("/v1/messages", ok)
 	router.GET("/v1/usage", ok)
+	router.GET("/v1/usage/requests", ok)
 	router.GET("/v1/sub2api/billing", ok)
 	return router
 }
