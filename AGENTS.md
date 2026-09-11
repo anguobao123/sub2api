@@ -1,17 +1,20 @@
-# Sub2API OpenClaw Billing Bridge
+# Sub2API Fusion Upstream
 
 ## Start Here
 
 - Read this file and `PROJECT_CONTEXT.md`, then inspect Git status and affected code before changes.
-- This worktree is dedicated to `codex/fusion-billing-20260911`, aligned with the running Sub2API 0.2.4 revision `5de5e2bed035d43591a2e10e51f420ef6a84eb98`. Inspect the actual binary version: the container image tag may predate an in-app update. Keep the original checkout and other worktrees unchanged.
+- This worktree is dedicated to `codex/fusion-billing-20260911`, based on actual Sub2API 0.2.4 revision `5de5e2bed035d43591a2e10e51f420ef6a84eb98`. Inspect the actual binary version: the container image tag may predate an in-app update. Keep the original checkout and other worktrees unchanged.
 - The Fusion primary task coordinates Suite integration, credentials and deployment under the user's existing authorization; delegated porting and tests must stay within their assigned files and temporary environments.
+- The default destination for future pushes is the `anguobao123` fork.
 - Keep the upstream LGPL-3.0-or-later license and copyright notices intact. New code must be original, narrowly scoped, and compatible with the existing license.
 
 ## Project
 
 - Sub2API is a Go HTTP service with PostgreSQL persistence, Ent models, Redis support, and a Vue frontend.
-- This branch adds an optional OpenClaw USD billing bridge without changing existing browser, admin, gateway, payment, or API-key contracts.
-- The bridge uses the existing `users.balance` and `users.frozen_balance` columns transactionally, but keeps OpenClaw mappings, leases, grants, and usage events in separate tables.
+- Sub2API supplies replaceable upstream model execution and platform cost records. Suite on Lexi owns each customer's balance, prices, plans, admission, holds and charges.
+- Two ordinary aggregate accounts separate user-task traffic (`fusion-user-workloads`) from platform-internal traffic (`fusion-platform-services`). Do not create a native account or key for each Suite user or reuse the administrator's key.
+- `GET /v1/usage/requests` exposes only the authenticated ordinary API key's native request usage and exact decimal cost. It remains usable when the old bridge is disabled.
+- The legacy OpenClaw wallet bridge is retired in production. Its code, migrations, account balances, mappings and history remain preserved; do not re-enable it as Suite's customer wallet.
 
 ## Important Paths
 
@@ -28,21 +31,23 @@
 - Backend format: `gofmt -w <changed Go files>`.
 - Focused tests: `cd backend && go test ./internal/service ./internal/repository ./internal/handler ./internal/server/routes`.
 - Tagged unit tests: `cd backend && go test -tags=unit ./internal/server`.
-- Backend build: `cd backend && CGO_ENABLED=0 go build -o bin/server ./cmd/server`; release flags are defined by the current `backend/Makefile`.
+- Request usage checks: `cd backend && go test -tags=unit ./internal/repository ./internal/handler ./internal/server/middleware ./internal/server/routes -run TestAPIKeyRequestUsage -count=1`.
+- Production build: `cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed -trimpath -o bin/server ./cmd/server`; preserve frontend assets and embed the actual version/commit in release flags.
 - Regenerate DI after provider changes: `cd backend/cmd/server && go generate`.
 
 ## Engineering Rules
 
-- Go code follows the existing style: Go ESM-equivalent module layout, tabs as `gofmt` emits, explicit errors, and PostgreSQL `NUMERIC(20,8)` amounts.
-- Keep the internal bridge's bearer and identities separate from browser JWT and admin credentials. Native model requests use a dedicated user API Key and the native request/key dedup transaction; managed wallet capture replaces that transaction's wallet debit, never adds a second debit.
-- Internal bridge requests require a separately configured bearer credential. The feature is disabled and fail-closed unless explicitly enabled and configured.
+- Go code follows the existing style, `gofmt` tabs and explicit errors. Native wallet amounts use PostgreSQL `NUMERIC(20,8)`; request cost lookup preserves the source decimal precision with `actual_cost::text`.
+- Capture the native response's `X-Client-Request-ID`; request lookup adds the internal `client:` prefix and always filters by the authenticated API key ID. A missing row means `ready:false`, never a confirmed zero charge.
+- Native usage input/cache counters are disjoint. Upstream costs are platform accounting information; Suite customer charges come from Suite prices and observed usage, not this cost field.
+- Legacy internal bridge authentication remains separate from ordinary API keys, browser JWT and admin credentials. Keep `openclaw_billing.enabled=false` for the retired deployment.
 - Do not persist raw `platformUserId`, raw credentials, or raw chat/task content. Persist a server-keyed HMAC locator and opaque internal IDs only.
 - OpenClaw usage events are append-only. Do not add them to generic usage cleanup paths or expose deletion endpoints.
-- Legacy ingested events without `pricingVersion` and `priceSnapshot` remain `pending_pricing`. Managed HTTP Responses use native pricing and preserve unknown or unsettled usage without assuming zero.
+- Preserve retired unknown/unsettled records and legacy event semantics; do not infer zero cost, refund or replay from missing usage.
 
 ## Verification
 
-- Bridge configuration, auth, mappings, grants, reservations, captures, releases, expiry, and usage ingestion need focused positive and negative tests.
+- Request lookup changes need own-key, cross-key, missing-row, exact-decimal and disabled-key coverage. Changes to retained legacy bridge behavior still require its focused positive and negative tests.
 - Inspect `git diff --check` and `git diff` before handoff.
 - Push, deployment, production migrations and real credentials are coordinated by the Fusion primary task after the relevant changes are reviewed and tested. Temporary test containers must not expose ports or attach to production databases.
 
