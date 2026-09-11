@@ -2,7 +2,7 @@
 
 - Updated: 2026-09-11 Asia/Hong_Kong.
 - Branch: `codex/fusion-billing-20260911`; original main checkout contains unrelated changes and is protected.
-- Current local integration: `68bb6d366` merges actual production 0.2.4 (`5de5e2bed035d43591a2e10e51f420ef6a84eb98`) with personal task billing (`158a5d097`). No production deployment of this feature yet.
+- Production code: `efb3659fcb4e721c70ed5db29d195acdfbab7072`, built on actual 0.2.4 (`5de5e2bed035d43591a2e10e51f420ef6a84eb98`) with personal task billing (`158a5d097`). Deployed 2026-09-11 with billing enabled and Gateway group 2.
 - Production inspection found Docker image tag 0.2.3 but `/app/sub2api -version` reports 0.2.4. Preserve the actual binary baseline rather than replacing it with the older image's program.
 
 ## Confirmed product requirements
@@ -30,6 +30,9 @@
 - Before the 0.2.4 merge, focused `TestOpenClaw` suites passed across config, service, repository, handler, middleware, routes and migrations. Server/Wire compilation passed.
 - Six real PostgreSQL scenarios passed: exact debit/native dedup/refund, four parallel task holds, insufficient funds without borrowing another hold, top-up settlement/idempotency, expiry with late billing and close-before-open/cross-user protection, native subscription quota without wallet debit.
 - The disposable PostgreSQL test database originally applied the old temporary migration filename 237. Subsequent merged-code tests must use a fresh disposable database rather than replay renamed DDL into it.
-- The opt-in HTTP fixture mounts only private bridge routes; it cannot prove the model Gateway chain. Full Gateway/CLI integration is being performed separately with synthetic upstream Responses and native PostgreSQL accounting.
-- Suite has implemented node admission, personal wallet/admin APIs and pages. Its 398 local tests, build, and Edge tests passed; these do not yet imply production charging is enabled.
-- Next: finish merged-baseline compilation and complete Gateway/Suite HTTP integration, then the Fusion primary task coordinates production deployment and isolated real-model acceptance under existing authorization.
+- Merged-baseline Wire, focused tests and fresh PostgreSQL migration/scenarios passed. Darwin ARM64 and Linux AMD64 binaries compiled; the production binary embeds the original 0.2.4 frontend.
+- Full local Gateway acceptance used the actual CLI, a synthetic Responses upstream, native pricing and PostgreSQL: charged exactly USD 0.00020000 once, correct user/key/task ownership, frozen funds released, and zero balance rejected before another upstream call. Suite-to-Go real HTTP integration also passed.
+- Production acceptance used one new synthetic Suite account with USD 50: real GPT-5.5 settled USD 0.015023, remaining balance USD 49.984977 and frozen USD 0. Setting this test account to zero then rejected a new model task with zero tokens and no additional fee records. No existing account was recharged or reassigned.
+- Suite `5810b00` is active. Its initial node rollout exposed a missing enrolled capability; the administrator-only capability update now preserves node ID/key/adapter scope and rejects updates during active execution leases. The existing queued test ran once after this fix. Its original timed-out reply remains unknown and was not resent; portal and denial checks use synthetic callbacks, not real WeChat sends.
+- Deployment release `20260911-efb3659fc` stores the captured actual old binary as a rollback image, private prior configuration and one required PostgreSQL dump under `/opt/sub2api/releases/personal-billing/`. Database restoration is not part of routine rollback. Existing environment, volumes and public routing were preserved; private bridge routing requires the Lexi source and independent bearer.
+- Test containers/Redis/PostgreSQL were removed after acceptance. Scripts/reports and final binaries remain outside the repository. Future changes must preserve the deployed accounting data and the original source checkout's unrelated changes.
